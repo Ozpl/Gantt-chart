@@ -44,7 +44,6 @@ def calculate_takt(input_list: dict) -> int:
 
     return takt
 
-
 def decide_start(input_list: dict) -> str:
     start = ''
 
@@ -54,16 +53,17 @@ def decide_start(input_list: dict) -> str:
 
     return start
 
-
-def check_available_machines(machine_list: list) -> list[Machine]:
+def check_available_machines(machine_list: list[Machine]) -> list[Machine]:
     result = {}
 
-    for machine in machine_list:
+    for i, machine in enumerate(machine_list):
         if not machine.is_occupied:
-            result.append(machine)
-
+            if result.get(machine.machine_type):
+                result[machine.machine_type].append(i)
+            else:
+                result[machine.machine_type] = [i]
+            
     return result
-
 
 test_daily_efficiency = 1
 test_input_data = {
@@ -112,29 +112,32 @@ test_order_end_time = 0
 
 current_step = 0
 
+check_available_machines(test_machine_list)
 
-def prepare_data(machine_list: list[dict], first_machine_name: str) -> None:
+def prepare_data(machine_list: list[Machine], first_machine_name: str) -> None:
     machine_list = list(machine_list)
+    in_production_list = []
+    
     while True:
         available_machines = check_available_machines(machine_list)
-        available_start_machines = [machine for machine
-                                    in available_machines
-                                    if machine.machine_type == first_machine_name]
+        
+        #Produkty na linii
+        for product in in_production_list:
+            for machine_type in available_machines.keys():
+                if machine_type is not first_machine_name:
+                    ...
+        
+        #Puste produkty wprowadzamy na linię
+        for machine_index in available_machines[first_machine_name]:
+            if available_machines.get(first_machine_name):
+                top_product = Product(0,
+                                    machine_list[machine_index].duration,
+                                    machine_list[machine_index].machine_type,
+                                    machine_list[machine_index].output)
+                in_production_list.append(top_product)
+                machine_list[machine_index].is_occupied = True
 
-        if available_start_machines > 0:
-            top_product = Product(0,
-                                  available_start_machines[-1].duration,
-                                  available_start_machines[-1].machine_type,
-                                  available_start_machines[-1].output)
-
-            test_in_production_list.append(top_product)
-            machine_to_reserve = [machine for machine
-                                  in machine_list
-                                  if machine.machine_type == available_start_machines[-1].machine_type][0]
-            machine_list = [machine for machine in machine_list]
-
-
-prepare_data(test_machine_list)
+prepare_data(test_machine_list, test_start)
 '''
 co kazdy krok:
     * sprawdzamy czy mozna dodać nowy wyrob do linii (czyli czy typ maszyny startowej jest wolny)
