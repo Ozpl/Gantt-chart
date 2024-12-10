@@ -130,10 +130,10 @@ def prepare_data(machine_list: list[Machine], first_machine_name: str) -> None:
         #Puste produkty wprowadzamy na linię
         for machine_index in available_machines[first_machine_name]:
             if available_machines.get(first_machine_name):
-                top_product = Product(0,
-                                    machine_list[machine_index].duration,
-                                    machine_list[machine_index].machine_type,
-                                    machine_list[machine_index].output)
+                top_product = Product(progress=0,
+                                      goal=machine_list[machine_index].duration,
+                                      current_machine=machine_list[machine_index].machine_type,
+                                      next_machine=machine_list[machine_index].output)
                 in_production_list.append(top_product)
                 machine_list[machine_index].is_occupied = True
 
