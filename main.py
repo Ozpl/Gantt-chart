@@ -1,5 +1,11 @@
 from dataclasses import dataclass
 
+@dataclass
+class Product:
+    sequence: int = 0
+    progress: int = 0
+    goal: int = 0
+    starting_point: int = 0
 
 @dataclass
 class Machine:
@@ -8,16 +14,7 @@ class Machine:
     duration: int
     input: str = ''
     output: str = ''
-    is_occupied: bool = False
-
-
-@dataclass
-class Product:
-    progress: int = 0
-    goal: int = 0
-    current_machine: str = ''
-    next_machine: str = ''
-
+    current_product: Product = None
 
 def instantiate_machines(input_list: dict) -> list[Machine]:
     output_list = list()
@@ -34,30 +31,11 @@ def instantiate_machines(input_list: dict) -> list[Machine]:
 
     return output_list
 
-
-def calculate_takt(input_list: dict) -> int:
-    takt = 0
-
-    for machine_type in input_list:
-        if input_list[machine_type]['duration'] > takt:
-            takt = input_list[machine_type]['duration']
-
-    return takt
-
-def decide_start(input_list: dict) -> str:
-    start = ''
-
-    for machine_type in input_list:
-        if not input_list[machine_type]['input']:
-            start = machine_type
-
-    return start
-
 def check_available_machines(machine_list: list[Machine]) -> list[Machine]:
     result = {}
 
     for i, machine in enumerate(machine_list):
-        if not machine.is_occupied:
+        if machine.current_product is None:
             if result.get(machine.machine_type):
                 result[machine.machine_type].append(i)
             else:
@@ -65,17 +43,95 @@ def check_available_machines(machine_list: list[Machine]) -> list[Machine]:
             
     return result
 
-test_daily_efficiency = 1
-test_input_data = {
-    "M1": {"duration": 210, "count": 1, 'input': None, 'output': 'M2'},
-    "M2": {"duration": 390, "count": 1, 'input': 'M1', 'output': 'M3'},
-    "M3": {"duration": 420, "count": 1, 'input': 'M2', 'output': 'M4'},
-    "M4": {"duration": 130, "count": 1, 'input': 'M3', 'output': None},
-}
-test_takt = calculate_takt(test_input_data)
-test_start = decide_start(test_input_data)
+def prepare_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
+    #Machine list needs to be reversed first
+    machine_list.reverse()
+    machine_list = list(machine_list)
+    first_machine_type = ''
+    last_machine_type = ''
+    
+    to_produce_counter = daily_efficiency
+    
+    results = {}
+    
+    for machine in machine_list:
+        if machine.input is None:
+            first_machine_type = machine.machine_type
+        if machine.output is None:
+            last_machine_type = machine.machine_type
+    
+    step_counter = 0
+    while True:
+        available_machines = check_available_machines(machine_list)
+        
+        #Check products already on machines
+        for machine in machine_list:
+            if machine.current_product is not None:                
+                #If product is in production, add time unit
+                if machine.current_product.progress < machine.current_product.goal - 1:
+                    machine.current_product.progress += 1
+                #If product is done, try to move it to next machine
+                elif machine.current_product.progress >= machine.current_product.goal - 1:
+                    #If it's the last machine, remove product from it
+                    if machine.machine_type == last_machine_type:
+                        results[str(machine.current_product.sequence)].append(machine.current_product.starting_point + machine.current_product.goal)
+                        machine.current_product = None
+                    
+                    #If next machine is empty, move product
+                    if available_machines.get(machine.output):
+                        machine_index = available_machines[machine.output][-1]
+                        
+                        machine_list[machine_index].current_product = Product(sequence=machine.current_product.sequence,
+                                                                              progress=0,
+                                                                              goal=machine_list[machine_index].duration,
+                                                                              starting_point=step_counter)
+                        machine.current_product = None
+                        
+                        available_machines[machine.output].pop(-1)
+                        if available_machines.get(machine.machine_type):
+                            available_machines[machine.machine_type].append(machine_index+1)
+                        else:
+                            available_machines[machine.machine_type] = [machine_index+1]
+                        if available_machines[machine.output] == []:
+                            del available_machines[machine.output]
+                            
+                        results[str(machine_list[machine_index].current_product.sequence)].append(machine_list[machine_index].current_product.starting_point)
+        
+        #Products enter the line through the empty first machines
+        if to_produce_counter > 0:
+            if available_machines.get(first_machine_type):
+                for machine_index in available_machines[first_machine_type]:
+                        top_product = Product(sequence=daily_efficiency-to_produce_counter+1,
+                                            progress=0,
+                                            goal=machine_list[machine_index].duration,
+                                            starting_point=step_counter)
+                        machine_list[machine_index].current_product = top_product
+                        to_produce_counter -= 1
+                        results[str(top_product.sequence)] = [top_product.starting_point]
+        
+        #Check if we have achieved daily efficiency
+        if to_produce_counter == 0:
+            all_machines_empty = True
+            for machine in machine_list:
+                if machine.current_product is not None:
+                    all_machines_empty = False
+            if all_machines_empty:
+                break
+            
+        step_counter = step_counter + 1
+        
+    return results
 
-# region Series 1
+#Machines need to be in sequence from first to last
+test_daily_efficiency = 100
+test_input_data = {
+    "M1": {"duration": 150, "count": 1, 'input': None, 'output': 'M2'},
+    "M2": {"duration": 200, "count": 1, 'input': 'M1', 'output': 'M3'},
+    "M3": {"duration": 300, "count": 1, 'input': 'M2', 'output': 'M4'},
+    "M4": {"duration": 250, "count": 1, 'input': 'M3', 'output': None},
+}
+test_machine_list = instantiate_machines(test_input_data)
+
 series_1_daily_efficiency = 150
 series_1_input_data = {
     "M1": {"duration": 210, "count": 2, 'input': None, 'output': 'M2'},
@@ -83,11 +139,8 @@ series_1_input_data = {
     "M3": {"duration": 420, "count": 3, 'input': 'M2', 'output': 'M4'},
     "M4": {"duration": 130, "count": 1, 'input': 'M3', 'output': None},
 }
-series_1_takt = calculate_takt(series_1_input_data)
-series_1_start = decide_start(series_1_input_data)
-# endregion
+series_1_machine_list = instantiate_machines(series_1_input_data)
 
-# region Series 2
 series_2_daily_efficiency = 100
 series_2_input_data = {
     "M1": {"duration": 200, "count": 2, 'input': None, 'output': 'M2'},
@@ -95,56 +148,6 @@ series_2_input_data = {
     "M3": {"duration": 350, "count": 3, 'input': 'M2', 'output': 'M4'},
     "M4": {"duration": 270, "count": 1, 'input': 'M3', 'output': None},
 }
-series_2_takt = calculate_takt(series_2_input_data)
-series_2_start = decide_start(series_2_input_data)
-# endregion
-
-series_1_machine_list = instantiate_machines(series_1_input_data)
 series_2_machine_list = instantiate_machines(series_2_input_data)
-test_machine_list = instantiate_machines(test_input_data)
 
-test_to_produce_counter = test_daily_efficiency
-test_in_production_list: list[Product] = []
-
-series_1_order_end_time = 0
-series_2_order_end_time = 0
-test_order_end_time = 0
-
-current_step = 0
-
-check_available_machines(test_machine_list)
-
-def prepare_data(machine_list: list[Machine], first_machine_name: str) -> None:
-    machine_list = list(machine_list)
-    in_production_list = []
-    
-    while True:
-        available_machines = check_available_machines(machine_list)
-        
-        #Produkty na linii
-        for product in in_production_list:
-            for machine_type in available_machines.keys():
-                if machine_type is not first_machine_name:
-                    ...
-        
-        #Puste produkty wprowadzamy na linię
-        for machine_index in available_machines[first_machine_name]:
-            if available_machines.get(first_machine_name):
-                top_product = Product(progress=0,
-                                      goal=machine_list[machine_index].duration,
-                                      current_machine=machine_list[machine_index].machine_type,
-                                      next_machine=machine_list[machine_index].output)
-                in_production_list.append(top_product)
-                machine_list[machine_index].is_occupied = True
-
-prepare_data(test_machine_list, test_start)
-'''
-co kazdy krok:
-    * sprawdzamy czy mozna dodać nowy wyrob do linii (czyli czy typ maszyny startowej jest wolny)
-    * dla kazdej maszyny:
-        * jezeli progress jest rowny duration:
-            * wyzeruj progress i is_occupied=False
-            * sprawdz
-        * jezeli jest mniejszy, is_occupied=True
-    * 
-'''
+results = prepare_data(test_machine_list, test_daily_efficiency)
