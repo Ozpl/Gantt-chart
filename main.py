@@ -23,23 +23,24 @@ class Machine:
 
 
 def instantiate_machines(input_list: dict) -> list[Machine]:
-    output_list = list()
+    machine_list: list[Machine] = list()
 
     for machine_type in input_list:
         for i in range(1, input_list[machine_type]['count']+1):
-            output_list.append(Machine(
+            machine = Machine(
                 machine_type=machine_type,
                 name=f'{machine_type}_{i}',
                 duration=input_list[machine_type]['duration'],
                 input=input_list[machine_type]['input'],
                 output=input_list[machine_type]['output']
-            ))
+            )
+            machine_list.append(machine)
 
-    return output_list
+    return machine_list
 
 
-def check_available_machines(machine_list: list[Machine]) -> list[Machine]:
-    result = {}
+def check_machines_availability(machine_list: list[Machine]) -> dict:
+    result: dict = {}
 
     for i, machine in enumerate(machine_list):
         if machine.current_product is None:
@@ -51,13 +52,13 @@ def check_available_machines(machine_list: list[Machine]) -> list[Machine]:
     return result
 
 
-def find_empty_machine_index(machine_list: list[Machine], machine_type: str) -> int:
+def find_index_of_empty_machine(machine_list: list[Machine], machine_type: str) -> int:
     for i, machine in enumerate(machine_list):
         if machine.current_product is None and machine.machine_type == machine_type:
             return i
 
 
-def prepare_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
+def prepare_chart_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
     machine_list = list(machine_list[::-1])
     first_machine_type = ''
     last_machine_type = ''
@@ -74,12 +75,12 @@ def prepare_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
 
     step_counter = 0
     while True:
-        available_machines = check_available_machines(machine_list)
+        available_machines = check_machines_availability(machine_list)
 
         # Check products already on machines
         for machine_index, machine in enumerate(machine_list):
             if machine.current_product is not None:
-                # If product is in production, add time unit
+                # If product is in production, add one unit of time
                 if machine.current_product.progress < machine.current_product.goal - 1:
                     machine.current_product.progress += 1
                 # If product is done, try to move it to next machine
@@ -89,9 +90,9 @@ def prepare_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
                         machine.current_product = None
 
                         if available_machines.get(machine.machine_type):
-                            available_machines[machine.machine_type].append(find_empty_machine_index(machine_list, machine.machine_type))
+                            available_machines[machine.machine_type].append(find_index_of_empty_machine(machine_list, machine.machine_type))
                         else:
-                            available_machines[machine.machine_type] = [find_empty_machine_index(machine_list, machine.machine_type)]
+                            available_machines[machine.machine_type] = [find_index_of_empty_machine(machine_list, machine.machine_type)]
 
                     # If next machine is empty, move product
                     if available_machines.get(machine.output):
@@ -145,7 +146,7 @@ def prepare_data(machine_list: list[Machine], daily_efficiency: int) -> dict:
     return results
 
 
-def create_dataframe_from_results(machine_list: list[Machine], results: dict) -> pd.DataFrame:
+def create_dataframe_from_data(machine_list: list[Machine], results: dict) -> pd.DataFrame:
     machine_names = []
 
     for machine in machine_list:
@@ -166,7 +167,7 @@ def create_dataframe_from_results(machine_list: list[Machine], results: dict) ->
     return df
 
 
-def show_plot(df: pd.DataFrame, title: str) -> None:
+def show_plot_in_browser(df: pd.DataFrame, title: str) -> None:
     fig = px.timeline(df, x_start="Start", x_end="Finish", y="Machine", color="Product", title=f"Gantt Chart - {title}")
     fig.update_layout(yaxis={'categoryorder': 'category ascending'})
     fig.update_xaxes(
@@ -186,9 +187,9 @@ series_1_input_data = {
 }
 series_1_machine_list = instantiate_machines(series_1_input_data)
 
-series_1_results = prepare_data(series_1_machine_list, series_1_daily_efficiency)
-series_1_df = create_dataframe_from_results(series_1_machine_list, series_1_results)
-show_plot(series_1_df, 'Series 1')
+series_1_results = prepare_chart_data(series_1_machine_list, series_1_daily_efficiency)
+series_1_dataframe = create_dataframe_from_data(series_1_machine_list, series_1_results)
+show_plot_in_browser(series_1_dataframe, 'Series 1')
 
 # Series 2
 series_2_daily_efficiency = 100
@@ -200,6 +201,20 @@ series_2_input_data = {
 }
 series_2_machine_list = instantiate_machines(series_2_input_data)
 
-series_2_results = prepare_data(series_2_machine_list, series_2_daily_efficiency)
-series_2_df = create_dataframe_from_results(series_2_machine_list, series_2_results)
-show_plot(series_2_df, 'Series 2')
+series_2_results = prepare_chart_data(series_2_machine_list, series_2_daily_efficiency)
+series_2_dataframe = create_dataframe_from_data(series_2_machine_list, series_2_results)
+show_plot_in_browser(series_2_dataframe, 'Series 2')
+
+# Series 3
+series_3_daily_efficiency = 5
+series_3_input_data = {
+    "M1": {"duration": 150, "count": 1, 'input': None, 'output': 'M2'},
+    "M2": {"duration": 200, "count": 1, 'input': 'M1', 'output': 'M3'},
+    "M3": {"duration": 300, "count": 2, 'input': 'M2', 'output': 'M4'},
+    "M4": {"duration": 250, "count": 1, 'input': 'M3', 'output': None},
+}
+series_3_machine_list = instantiate_machines(series_3_input_data)
+
+series_3_results = prepare_chart_data(series_3_machine_list, series_3_daily_efficiency)
+series_3_dataframe = create_dataframe_from_data(series_3_machine_list, series_3_results)
+show_plot_in_browser(series_3_dataframe, 'Series 3')
